@@ -1,4 +1,4 @@
-# Architecht.ai Studio
+# Front-End overview
 
 An AI-assisted architecture workbench where users describe a product idea and constraints, then generate a proposed solution architecture.
 
