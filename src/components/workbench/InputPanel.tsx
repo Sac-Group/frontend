@@ -80,8 +80,16 @@ const TEMPLATES = [
   },
 ];
 
+export type GeneratePayload = {
+  requirements: string;
+  scale: string;
+  teamSize: number;
+  budget: string;
+  deployment: string;
+};
+
 type Props = {
-  onGenerate: (payload: { requirements: string }) => void;
+  onGenerate: (payload: GeneratePayload) => void;
   loading: boolean;
 };
 
@@ -103,7 +111,13 @@ export function InputPanel({ onGenerate, loading }: Props) {
 
   const submit = () => {
     if (!requirements.trim() || loading) return;
-    onGenerate({ requirements });
+    onGenerate({
+      requirements,
+      scale,
+      teamSize: teamSize[0],
+      budget,
+      deployment,
+    });
   };
 
   return (

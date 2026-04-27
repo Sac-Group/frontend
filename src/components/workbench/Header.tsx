@@ -21,13 +21,23 @@ export function Header() {
           variant="ghost"
           size="sm"
           className="hidden h-8 gap-1.5 text-muted-foreground hover:text-foreground sm:inline-flex"
+          asChild
         >
-          <Github className="h-4 w-4" />
-          <span className="text-xs">Star</span>
+          <a href="https://github.com/Sac-Group" target="_blank" rel="noopener noreferrer">
+            <Github className="h-4 w-4" />
+            <span className="text-xs">Star</span>
+          </a>
         </Button>
         <Button
           size="sm"
           className="h-8 gap-1.5 bg-foreground text-background hover:bg-foreground/90"
+          onClick={() => {
+            if (navigator.share) {
+              navigator.share({ title: "Architecht.ai", url: window.location.href });
+            } else {
+              navigator.clipboard.writeText(window.location.href);
+            }
+          }}
         >
           <Share2 className="h-3.5 w-3.5" />
           <span className="text-xs font-medium">Share</span>
