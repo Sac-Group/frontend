@@ -1,5 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
@@ -79,5 +81,10 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  return <Outlet />;
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Outlet />
+      <Toaster position="top-right" richColors closeButton />
+    </TooltipProvider>
+  );
 }
