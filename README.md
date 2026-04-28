@@ -1,123 +1,174 @@
-# Front-End overview
+# Architecht.ai — Frontend
 
-An AI-assisted architecture workbench where users describe a product idea and constraints, then generate a proposed solution architecture.
+An AI-assisted architecture workbench. Users describe a product idea and constraints, hit **Generate Architecture**, and the app calls a Gemini-powered backend to produce a complete, opinionated solution architecture — components, tech stack rationale, design decisions, and risks.
 
-This repository is currently frontend-focused. The "generate architecture" action uses a simulated delay and placeholder output, ready to be connected to a real backend/API.
+This repository is the React/Vite frontend. It pairs with a separate Express backend that talks to the Gemini API.
 
-## What This Project Does
+---
 
-- Collects system requirements from the user in a guided panel
-- Lets users apply templates (E-commerce, SaaS, IoT, Chat, etc.)
-- Captures delivery constraints like scale, team size, budget, and deployment mode
-- Simulates architecture generation flow (loading state -> result state)
-- Displays a polished architecture output area with empty/loading/result views
+## Screenshots
 
-## Tech Stack (Simple View)
+### Workbench (empty state)
 
-- React + TypeScript for UI and component logic
-- TanStack Router / React Start for routing and app shell
-- Tailwind CSS v4 + custom tokens for design system styling
-- Radix + shadcn-style UI components for reusable controls
-- Framer Motion for animations and transitions
-- Vite for local development and production builds
-- Wrangler config included for Cloudflare-compatible deployment
+Input panel on the left for requirements, templates, and constraints. The right pane explains what's about to happen.
 
-## App Flow
+![Workbench empty state](docs/screenshots/01-workbench.png)
 
-1. User lands on `/` and sees the workbench layout.
-2. User writes requirements (or picks a template).
-3. User adjusts constraints (scale, team size, budget, deployment).
-4. User clicks **Generate Architecture**.
-5. App shows an animated loading sequence.
-6. App shows a placeholder result panel (until backend is integrated).
+### Generated architecture
 
-## Project Structure and File Purpose
+After clicking Generate, the response is rendered as a structured report — title, overview, component grid with technology chips, tech-stack chips with hover tooltips showing the rationale, an accordion for design decisions, and amber warning cards for risks.
 
-### Root Files
+![Generated architecture result](docs/screenshots/02-result.png)
 
-- `package.json`: project metadata, scripts, dependencies
-- `vite.config.ts`: Vite config wrapper from `@lovable.dev/vite-tanstack-config`
-- `wrangler.jsonc`: Cloudflare Worker deployment configuration
-- `tsconfig.json`: TypeScript compiler options
-- `eslint.config.js`: linting rules and TypeScript/React lint setup
-- `components.json`: shadcn-style component configuration
-- `src/styles.css`: global theme tokens, utilities (`glass`, `dot-grid`, etc.), and base styles
+### Service unavailable
 
-### App Routing Files
+If the backend cannot be reached on app load (or a generate request fails with a network/5xx error), the app shows a dedicated full-screen status page. It auto-rechecks every 15 seconds and exposes a manual retry.
 
-- `src/routes/__root.tsx`: root HTML shell, meta tags, fonts, and not-found page
-- `src/routes/index.tsx`: main page route (`/`) and workbench composition
-- `src/router.tsx`: router initialization and default global error UI
-- `src/routeTree.gen.ts`: auto-generated route tree used by TanStack Router
+![Service unavailable page](docs/screenshots/03-service-unavailable.png)
 
-### Workbench Feature Files
+---
 
-- `src/components/workbench/Header.tsx`
-  - Top navigation/header bar (branding, share/star actions)
-- `src/components/workbench/InputPanel.tsx`
-  - Left-side requirements + constraints panel
-  - Includes template chips, textarea auto-resize, constraint controls, and submit action
-- `src/components/workbench/OutputDisplay.tsx`
-  - Right-side output area
-  - Renders three states: empty, loading, and result placeholder
+## What this project does
 
-### Shared Utility Files
+- Collects system requirements through a guided input panel (with quick-start templates: E-commerce, SaaS, IoT, Chat, Streaming, Fintech, EdTech, Health, Gaming).
+- Captures delivery constraints — scale, team size, budget, and deployment mode — and composes them into a human-readable string sent to the backend.
+- Calls `POST /api/generate` on the backend and renders the response as a rich, scannable architecture report.
+- Falls back to a branded **Service Unavailable** page when the backend is down, with an auto-retry loop and visible countdown.
+- Shows toast notifications for transient failures and the final "service is back online" recovery.
 
-- `src/lib/utils.ts`: shared helpers (for example class name merging via `cn`)
-- `src/hooks/use-mobile.tsx`: reusable hook for mobile viewport behavior
+## Tech stack
 
-### UI Component Library
+- **React 19** + **TypeScript** for UI and component logic
+- **TanStack Router** / **TanStack Start** for routing and the app shell
+- **Tailwind CSS v4** with custom design tokens (glass, dot-grid, gradient mesh)
+- **Radix UI** primitives wrapped in shadcn-style components
+- **Framer Motion** for transitions and micro-interactions
+- **lucide-react** icons
+- **sonner** for toast notifications
+- **Vite 7** for development and builds
+- **Cloudflare Workers** deployment via `@cloudflare/vite-plugin` (config included)
 
-The `src/components/ui/` folder contains reusable UI primitives such as:
+## Architecture (frontend)
 
-- form controls (`input`, `textarea`, `select`, `checkbox`, `switch`, `radio-group`)
-- layout elements (`card`, `separator`, `sheet`, `drawer`, `sidebar`)
-- feedback/display (`alert`, `dialog`, `tooltip`, `badge`, `progress`, `skeleton`)
-- navigation/interaction (`tabs`, `dropdown-menu`, `navigation-menu`, `popover`)
+```
+┌──────────────────────────────────────────────────────────┐
+│  __root.tsx          mounts <TooltipProvider> + <Toaster>│
+│  └─ index.tsx        gates Workbench on /api/test ping   │
+│      ├─ down         → <ServiceUnavailable/>             │
+│      └─ up           → <Workbench/>                      │
+│          ├─ Header                                       │
+│          ├─ InputPanel  → onGenerate(payload)            │
+│          └─ OutputDisplay (empty | loading | result | err)│
+└──────────────────────────────────────────────────────────┘
 
-These files are mostly foundational building blocks used by feature components like `InputPanel` and `Header`.
+src/lib/api.ts
+  ├─ pingHealth()             GET  /api/test  (5s timeout)
+  └─ generateArchitecture()   POST /api/generate
+```
 
-## How to Run Locally
+The route handler holds all generation state, composes a `constraints` string from the input panel's selections, performs the fetch via `AbortController` (so re-submits cancel in-flight requests), and routes errors either to the inline error state (4xx) or to the full-screen service-unavailable page (network errors / 5xx).
+
+## App flow
+
+1. App boots. `pingHealth()` is called against the backend.
+2. **If unreachable** → render `ServiceUnavailable`. Auto-retry every 15s with a countdown; manual "Try again now" button forces an immediate check. On success, toast `Service is back online` and the workbench appears.
+3. **If reachable** → render the workbench. User picks a template or types requirements, adjusts constraints, hits **Generate Architecture**.
+4. Loading state shows the staged "Gemini is thinking…" animation while the backend calls Gemini with `responseSchema` enforcement.
+5. Result renders with framer-motion enter animations:
+   - Title with **Generated Architecture** badge + **Copy JSON** button
+   - Overview card
+   - Component grid with technology chips
+   - Tech-stack chips (hover for rationale tooltip)
+   - Design decisions accordion (multi-open)
+   - Amber warning cards for risks + mitigations
+
+## Project structure
+
+```
+src/
+├── routes/
+│   ├── __root.tsx              app shell, head/meta, providers
+│   └── index.tsx               main route — health gate + generation
+├── components/
+│   ├── workbench/
+│   │   ├── Header.tsx          branded header (Star → GitHub, Share)
+│   │   ├── InputPanel.tsx      requirements + constraints (no API logic)
+│   │   ├── OutputDisplay.tsx   empty / loading / result / inline error
+│   │   └── ServiceUnavailable.tsx  full-screen status page
+│   └── ui/                     shadcn-style Radix wrappers
+├── lib/
+│   ├── api.ts                  typed Architecture client + pingHealth
+│   └── utils.ts                cn() helper
+├── hooks/
+│   └── use-mobile.tsx          viewport hook
+├── router.tsx                  router init + global error UI
+├── routeTree.gen.ts            auto-generated by TanStack Router
+└── styles.css                  Tailwind v4 + tokens (glass, dot-grid)
+```
+
+## API contract
+
+The frontend calls a single endpoint. Full request/response schema lives in the backend repo's `API_DOCS.md`.
+
+```
+POST {VITE_API_URL}/api/generate
+Content-Type: application/json
+
+{ "requirements": "...", "constraints": "..." }
+```
+
+Returns an `Architecture` object containing `architectureName`, `overview`, `components[]`, `techStack[]`, `designDecisions[]`, and `risks[]`.
+
+A health check uses:
+
+```
+GET {VITE_API_URL}/api/test  →  { "status": "working" }
+```
+
+## Running locally
 
 ### Prerequisites
 
-- Node.js 18+ (or Bun, since `bun.lockb` is included)
+- Node.js 18+
+- The backend running on `http://localhost:8080` (see the backend repo)
 
-### Install
+### Configure
 
-Using npm:
+Copy the example env file and adjust if needed:
+
+```bash
+cp .env.example .env
+```
+
+```ini
+VITE_API_URL=http://localhost:8080
+```
+
+### Install and run
 
 ```bash
 npm install
-```
-
-Or using Bun:
-
-```bash
-bun install
-```
-
-### Start Dev Server
-
-```bash
 npm run dev
 ```
 
-### Build
+The dev server prints its local URL (typically `http://localhost:8080` or the next free port).
+
+### Build, lint, format
 
 ```bash
-npm run build
+npm run build      # production bundle
+npm run lint       # eslint
+npm run format     # prettier
 ```
 
-### Lint
+## Deployment
 
-```bash
-npm run lint
-```
+The project ships with `wrangler.jsonc` for Cloudflare Workers / Pages deployment via `@cloudflare/vite-plugin`. Set `VITE_API_URL` in the deployment environment to point at your hosted backend.
 
-## Current Status
+## Status
 
-- UI/UX is implemented and polished
-- Route structure and error/not-found handling are set up
-- Generation flow is currently mocked in `src/routes/index.tsx`
-- Next step is wiring the generate action to a real architecture backend service
+- Real Gemini-backed generation via `/api/generate` (schema-enforced JSON).
+- Service-unavailable page with health check + auto-retry.
+- Full result rendering with chips, tooltips, accordion, and risk cards.
+- Copy-JSON, retry on inline errors, abort on re-submit.
+- All UI work uses shadcn-style Radix primitives — no bespoke a11y.
