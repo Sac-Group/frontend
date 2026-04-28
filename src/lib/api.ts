@@ -35,6 +35,28 @@ export type GenerateRequest = {
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8080";
 
+export const API_BASE_URL = API_URL;
+
+export async function pingHealth(signal?: AbortSignal, timeoutMs = 5000): Promise<boolean> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const externalAbort = () => controller.abort();
+  signal?.addEventListener("abort", externalAbort);
+
+  try {
+    const res = await fetch(`${API_URL}/api/test`, {
+      method: "GET",
+      signal: controller.signal,
+    });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", externalAbort);
+  }
+}
+
 export class ApiError extends Error {
   status: number;
   constructor(message: string, status: number) {
